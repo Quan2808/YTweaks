@@ -1,10 +1,20 @@
 {
   "manifest_version": 3,
-  "name": "React Chrome Extension",
+  "name": "YTweaks - YouTube Enhancer",
   "version": "1.0.0",
-  "description": "A simple React app as a Chrome extension",
-  "action": {
-    "default_popup": "index.html"
+  "description": "Tùy chỉnh và cải thiện trải nghiệm YouTube của bạn.",
+  "permissions": ["storage", "tabs", "scripting"],
+  "host_permissions": ["https://www.youtube.com/*"],
+  "background": {
+    "service_worker": "background/background.js"
   },
-  "permissions": []
+  "action": {
+    "default_popup": "src/popup/index.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.youtube.com/*"],
+      "js": ["content/content.js"]
+    }
+  ]
 }
