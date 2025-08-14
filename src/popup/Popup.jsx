@@ -1,8 +1,23 @@
 import React, { useState } from "react";
-import ToggleButton from "../components/ToggleButton";
+import FeatureToggle from "../components/FeatureToggle";
+
+// Define features based on content.js
+const features = [
+  { key: "hideShorts", label: "Hide Shorts" },
+  { key: "autoSkipAds", label: "Auto Skip Ads" },
+  { key: "enhancePipButton", label: "Enhance PiP Button" },
+];
 
 export default function Popup() {
   const [isDark, setIsDark] = useState(window.matchMedia("(prefers-color-scheme: dark)").matches);
+
+  // Function to reset all feature toggles
+  const handleReset = () => {
+    features.forEach(({ key }) => {
+      window.localStorage.setItem(key, JSON.stringify(false));
+    });
+    window.location.reload(); // Reload to reflect changes
+  };
 
   return (
     <div className="w-80 p-4 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 rounded-lg shadow-lg">
@@ -11,7 +26,7 @@ export default function Popup() {
           <svg className="w-6 h-6 text-red-500" fill="currentColor" viewBox="0 0 24 24">
             <path d="M19.14 3.14A10 10 0 0 0 12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10a9.94 9.94 0 0 0-2.86-6.86zm-7.86 13.72V7.14l6.43 4.86-6.43 4.86z" />
           </svg>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">YTweaks</h1>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">YouTube Enhancer</h1>
         </div>
         <button
           onClick={() => setIsDark(!isDark)}
@@ -30,18 +45,19 @@ export default function Popup() {
         </button>
       </div>
       <div className="space-y-3">
-        <ToggleButton label="Ẩn Shorts" featureKey="hideShorts" />
-        <ToggleButton label="Tự động bỏ qua quảng cáo" featureKey="autoSkipAds" />
-        <ToggleButton label="Tắt gợi ý video" featureKey="disableSuggestions" />
-        <ToggleButton label="Chế độ tối tự động" featureKey="autoDarkMode" />
-        <ToggleButton label="Enhance PiP Button" featureKey="enhancePipButton" />
+        {features.map(({ key, label }) => (
+          <FeatureToggle key={key} label={label} featureKey={key} />
+        ))}
       </div>
       <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-        <button className="w-full py-2 px-4 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors duration-200 flex items-center justify-center gap-2">
+        <button
+          onClick={handleReset}
+          className="w-full py-2 px-4 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors duration-200 flex items-center justify-center gap-2"
+        >
           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" />
           </svg>
-          Reset Cài Đặt
+          Reset Settings
         </button>
       </div>
     </div>

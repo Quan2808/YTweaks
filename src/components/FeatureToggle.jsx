@@ -1,7 +1,7 @@
 import React from "react";
 import useLocalStorage from "../hooks/useLocalStorage";
 
-export default function ToggleButton({ label, featureKey }) {
+export default function FeatureToggle({ label, featureKey }) {
   const [isEnabled, setIsEnabled] = useLocalStorage(featureKey, false);
 
   const handleToggle = () => {
