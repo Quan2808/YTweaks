@@ -5,7 +5,35 @@ export default function FeatureToggle({ label, featureKey }) {
   const [isEnabled, setIsEnabled] = useLocalStorage(featureKey, false);
 
   const handleToggle = () => {
-    setIsEnabled(!isEnabled);
+    const newValue = !isEnabled;
+    setIsEnabled(newValue);
+
+    // Lưu vào localStorage
+    // window.localStorage.setItem(featureKey, JSON.stringify(newValue));
+
+    // Check if the active tab is a YouTube page before sending the message
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      const activeTab = tabs[0];
+      if (!activeTab?.id || !activeTab.url.includes("youtube.com")) {
+        console.log(`Không gửi message vì tab hiện tại không phải YouTube: ${activeTab?.url || "unknown"}`);
+        return;
+      }
+
+      chrome.tabs.sendMessage(
+        activeTab.id,
+        {
+          action: "toggleFeature",
+          key: featureKey,
+          value: newValue,
+        },
+        () => {
+          if (chrome.runtime.lastError) {
+            // Suppress the warning or handle it silently
+            console.log("Content script không khả dụng trên trang này.");
+          }
+        }
+      );
+    });
   };
 
   return (

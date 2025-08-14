@@ -3,8 +3,6 @@ import FeatureToggle from "../components/FeatureToggle";
 
 // Define features based on content.js
 const features = [
-  { key: "hideShorts", label: "Hide Shorts" },
-  { key: "autoSkipAds", label: "Auto Skip Ads" },
   { key: "enhancePipButton", label: "Enhance PiP Button" },
 ];
 
@@ -48,17 +46,6 @@ export default function Popup() {
         {features.map(({ key, label }) => (
           <FeatureToggle key={key} label={label} featureKey={key} />
         ))}
-      </div>
-      <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-        <button
-          onClick={handleReset}
-          className="w-full py-2 px-4 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors duration-200 flex items-center justify-center gap-2"
-        >
-          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z" />
-          </svg>
-          Reset Settings
-        </button>
       </div>
     </div>
   );
