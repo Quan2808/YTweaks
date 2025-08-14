@@ -1,30 +1,30 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import useLocalStorage from "../hooks/useLocalStorage";
 
 export default function ToggleButton({ label, featureKey }) {
-  const [enabled, setEnabled] = useLocalStorage(featureKey, false);
+  const [isEnabled, setIsEnabled] = useLocalStorage(featureKey, false);
 
   const handleToggle = () => {
-    setEnabled(!enabled);
-    chrome.storage.sync.set({ [featureKey]: !enabled });
+    setIsEnabled(!isEnabled);
   };
 
-  useEffect(() => {
-    chrome.storage.sync.get(featureKey, (result) => {
-      if (result[featureKey] !== undefined) {
-        setEnabled(result[featureKey]);
-      }
-    });
-  }, []);
-
   return (
-    <button
-      onClick={handleToggle}
-      className={`w-full py-2 px-3 rounded-lg mb-2 text-left ${
-        enabled ? "bg-green-500 text-white" : "bg-gray-300 text-black"
-      }`}
-    >
-      {label}
-    </button>
+    <div className="flex items-center justify-between py-2">
+      <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{label}</span>
+      <button
+        onClick={handleToggle}
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${
+          isEnabled ? "bg-red-500" : "bg-gray-300 dark:bg-gray-600"
+        }`}
+        role="switch"
+        aria-checked={isEnabled}
+      >
+        <span
+          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${
+            isEnabled ? "translate-x-6" : "translate-x-1"
+          }`}
+        />
+      </button>
+    </div>
   );
 }
