@@ -1,130 +1,156 @@
 import React, { useEffect, useState } from 'react';
 import {
   Box,
-  Typography,
   Paper,
-  Divider,
-  Switch,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
-  IconButton,
-  Avatar,
-  Chip,
-  Button,
+  Alert,
+  Snackbar,
 } from '@mui/material';
-import { 
-  YouTube, 
-  Settings, 
-  PictureInPicture,
-  Speed,
-  VideoSettings,
-  Palette,
-  Extension,
-  MoreVert
-} from '@mui/icons-material';
-
-interface FeatureConfig {
-  pipColorToggle: boolean;
-}
-
-const FeatureSwitch: React.FC<{
-  label: string;
-  description: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  icon?: React.ReactNode;
-}> = ({ label, description, checked, onChange, icon }) => {
-  return (
-    <ListItem 
-      sx={{ 
-        py: 1.5,
-        px: 2,
-        '&:hover': {
-          backgroundColor: 'rgba(0, 0, 0, 0.04)',
-        },
-        borderRadius: 1,
-      }}
-    >
-      <Box display="flex" alignItems="center" width="100%">
-        {icon && (
-          <Avatar 
-            sx={{ 
-              width: 40, 
-              height: 40, 
-              mr: 2,
-              bgcolor: '#FF0000',
-              color: 'white'
-            }}
-          >
-            {icon}
-          </Avatar>
-        )}
-        <Box flex={1}>
-          <Typography 
-            variant="body1" 
-            fontWeight={500}
-            sx={{ 
-              color: '#0f0f0f',
-              fontSize: '14px',
-              lineHeight: '20px'
-            }}
-          >
-            {label}
-          </Typography>
-          <Typography 
-            variant="caption" 
-            sx={{ 
-              color: '#606060',
-              fontSize: '12px',
-              lineHeight: '16px'
-            }}
-          >
-            {description}
-          </Typography>
-        </Box>
-        <Switch
-          checked={checked}
-          onChange={(e) => onChange(e.target.checked)}
-          sx={{
-            '& .MuiSwitch-switchBase.Mui-checked': {
-              color: '#FF0000',
-              '&:hover': {
-                backgroundColor: 'rgba(255, 0, 0, 0.04)',
-              },
-            },
-            '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-              backgroundColor: '#FF0000',
-            },
-          }}
-        />
-      </Box>
-    </ListItem>
-  );
-};
+import Header from './components/Header';
+import FeaturesList from './components/FeaturesList';
+import Footer from './components/Footer';
+import { FeatureConfig, MessageRequest, MessageResponse } from '../shared/types';
 
 const Popup: React.FC = () => {
   const [features, setFeatures] = useState<FeatureConfig>({ 
     pipColorToggle: true,
   });
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string>('');
+  const [success, setSuccess] = useState<string>('');
 
+  // Load features from content script on mount
   useEffect(() => {
-    // Simulate chrome.storage.sync.get
-    const savedFeatures = localStorage.getItem('features');
-    if (savedFeatures) {
-      setFeatures(JSON.parse(savedFeatures));
-    }
+    loadFeaturesFromContentScript();
   }, []);
 
-  const handleFeatureToggle = (feature: keyof FeatureConfig, enabled: boolean) => {
-    const updatedFeatures = { ...features, [feature]: enabled };
-    setFeatures(updatedFeatures);
-    // Simulate chrome.storage.sync.set
-    localStorage.setItem('features', JSON.stringify(updatedFeatures));
+  const loadFeaturesFromContentScript = async (): Promise<void> => {
+    try {
+      setLoading(true);
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      
+      if (!tabs[0]?.id) {
+        throw new Error('Không tìm thấy tab active');
+      }
+
+      // Check if it's a YouTube page
+      if (!tabs[0].url?.includes('youtube.com')) {
+        throw new Error('Vui lòng mở trang YouTube để sử dụng extension');
+      }
+
+      const response = await sendMessageToContentScript(tabs[0].id, { action: 'getFeatures' });
+      
+      if (response.success && response.features) {
+        setFeatures(response.features);
+        setSuccess('Đã tải cấu hình thành công');
+      } else {
+        throw new Error(response.error || 'Không thể tải cấu hình');
+      }
+    } catch (error) {
+      console.error('Failed to load features:', error);
+      setError(error instanceof Error ? error.message : 'Lỗi không xác định');
+      
+      // Fallback to storage if content script fails
+      try {
+        const result = await chrome.storage.sync.get(['features']);
+        const fallbackFeatures = result.features || { pipColorToggle: true };
+        setFeatures(fallbackFeatures);
+      } catch (storageError) {
+        console.error('Storage fallback failed:', storageError);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sendMessageToContentScript = (tabId: number, message: MessageRequest): Promise<MessageResponse> => {
+    return new Promise((resolve, reject) => {
+      chrome.tabs.sendMessage(tabId, message, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        resolve(response || { success: false, error: 'No response' });
+      });
+    });
+  };
+
+  const handleFeatureToggle = async (feature: keyof FeatureConfig, enabled: boolean): Promise<void> => {
+    try {
+      const updatedFeatures = { ...features, [feature]: enabled };
+      
+      // Update local state immediately for better UX
+      setFeatures(updatedFeatures);
+
+      // Get active tab
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tabs[0]?.id) {
+        throw new Error('Không tìm thấy tab active');
+      }
+
+      // Send to content script
+      const response = await sendMessageToContentScript(tabs[0].id, {
+        action: 'updateFeatures',
+        features: updatedFeatures
+      });
+
+      if (response.success) {
+        setSuccess(`Đã ${enabled ? 'bật' : 'tắt'} tính năng`);
+        
+        // Save to storage as backup
+        await chrome.storage.sync.set({ features: updatedFeatures });
+      } else {
+        throw new Error(response.error || 'Không thể cập nhật tính năng');
+      }
+    } catch (error) {
+      console.error('Failed to toggle feature:', error);
+      setError(error instanceof Error ? error.message : 'Không thể cập nhật tính năng');
+      
+      // Revert local state on error
+      loadFeaturesFromContentScript();
+    }
+  };
+
+  const handleApplyAll = async (): Promise<void> => {
+    try {
+      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tabs[0]?.id) {
+        throw new Error('Không tìm thấy tab active');
+      }
+
+      const response = await sendMessageToContentScript(tabs[0].id, {
+        action: 'updateFeatures',
+        features
+      });
+
+      if (response.success) {
+        setSuccess('Đã áp dụng tất cả cài đặt');
+      } else {
+        throw new Error(response.error || 'Không thể áp dụng cài đặt');
+      }
+    } catch (error) {
+      console.error('Failed to apply all settings:', error);
+      setError(error instanceof Error ? error.message : 'Không thể áp dụng cài đặt');
+    }
   };
 
   const enabledFeaturesCount = Object.values(features).filter(Boolean).length;
+
+  if (loading) {
+    return (
+      <Box sx={{ 
+        width: 380, 
+        height: 200,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        bgcolor: '#ffffff',
+      }}>
+        <Box textAlign="center">
+          <div>Đang tải...</div>
+        </Box>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ 
@@ -140,156 +166,36 @@ const Popup: React.FC = () => {
           border: '1px solid #e5e5e5'
         }}
       >
-        {/* Header - YouTube Style */}
-        <Box 
-          sx={{
-            padding: '16px 20px',
-            borderBottom: '1px solid #e5e5e5',
-            backgroundColor: '#ffffff'
-          }}
-        >
-          <Box display="flex" alignItems="center" justifyContent="space-between">
-            <Box display="flex" alignItems="center">
-              <YouTube 
-                sx={{ 
-                  color: '#FF0000', 
-                  fontSize: 28,
-                  mr: 1.5
-                }} 
-              />
-              <Box>
-                <Typography 
-                  variant="h6" 
-                  sx={{
-                    fontWeight: 600,
-                    fontSize: '16px',
-                    color: '#0f0f0f',
-                    lineHeight: '22px',
-                    mb: 0.5
-                  }}
-                >
-                  YouTube Enhancer
-                </Typography>
-                <Box display="flex" alignItems="center" gap={1}>
-                  <Chip
-                    size="small"
-                    label={`${enabledFeaturesCount} tính năng đang bật`}
-                    sx={{
-                      height: '20px',
-                      fontSize: '11px',
-                      backgroundColor: '#f2f2f2',
-                      color: '#606060',
-                      '& .MuiChip-label': {
-                        px: 1
-                      }
-                    }}
-                  />
-                  <Extension sx={{ fontSize: 14, color: '#606060' }} />
-                </Box>
-              </Box>
-            </Box>
-            
-            <IconButton 
-              size="small"
-              sx={{
-                '&:hover': {
-                  backgroundColor: 'rgba(0, 0, 0, 0.1)',
-                }
-              }}
-            >
-              <MoreVert sx={{ fontSize: 20, color: '#606060' }} />
-            </IconButton>
-          </Box>
-        </Box>
-
-        {/* Features List */}
-        <Box sx={{ pb: 1 }}>
-          <Typography 
-            variant="overline" 
-            sx={{
-              px: 2,
-              pt: 2,
-              pb: 1,
-              display: 'block',
-              fontSize: '11px',
-              fontWeight: 500,
-              color: '#606060',
-              textTransform: 'uppercase',
-              letterSpacing: '0.8px'
-            }}
-          >
-            Tính năng nâng cao
-          </Typography>
-          
-          <List sx={{ py: 0 }}>
-            <FeatureSwitch
-              label="Picture-in-Picture Enhanced"
-              description="Tùy chỉnh màu sắc và vị trí nút PiP"
-              checked={features.pipColorToggle}
-              onChange={(checked) => handleFeatureToggle('pipColorToggle', checked)}
-              icon={<PictureInPicture sx={{ fontSize: 20 }} />}
-            />
-          </List>
-        </Box>
-
-        {/* Footer Actions */}
-        <Box 
-          sx={{
-            p: 2,
-            borderTop: '1px solid #e5e5e5',
-            backgroundColor: '#f9f9f9'
-          }}
-        >
-          <Box display="flex" gap={1}>
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<Settings sx={{ fontSize: 16 }} />}
-              sx={{
-                flex: 1,
-                textTransform: 'none',
-                fontSize: '13px',
-                borderColor: '#d0d0d0',
-                color: '#606060',
-                '&:hover': {
-                  borderColor: '#909090',
-                  backgroundColor: '#f0f0f0'
-                }
-              }}
-            >
-              Cài đặt nâng cao
-            </Button>
-            <Button
-              variant="contained"
-              size="small"
-              sx={{
-                flex: 1,
-                textTransform: 'none',
-                fontSize: '13px',
-                backgroundColor: '#FF0000',
-                '&:hover': {
-                  backgroundColor: '#cc0000',
-                }
-              }}
-            >
-              Áp dụng tất cả
-            </Button>
-          </Box>
-          
-          <Typography
-            variant="caption"
-            sx={{
-              display: 'block',
-              textAlign: 'center',
-              mt: 1,
-              color: '#909090',
-              fontSize: '11px'
-            }}
-          >
-            YouTube Enhancer v2.1.0
-          </Typography>
-        </Box>
+        <Header enabledFeaturesCount={enabledFeaturesCount} />
+        <FeaturesList 
+          features={features} 
+          onFeatureToggle={handleFeatureToggle} 
+        />
+        <Footer onApplyAll={handleApplyAll} />
       </Paper>
+
+      {/* Success/Error Notifications */}
+      <Snackbar
+        open={!!success}
+        autoHideDuration={3000}
+        onClose={() => setSuccess('')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="success" onClose={() => setSuccess('')}>
+          {success}
+        </Alert>
+      </Snackbar>
+
+      <Snackbar
+        open={!!error}
+        autoHideDuration={4000}
+        onClose={() => setError('')}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="error" onClose={() => setError('')}>
+          {error}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };
